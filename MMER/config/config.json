@@ -1,0 +1,42 @@
+{
+  "mmer": {
+    "commonParams": {
+      "learning_rate": 1e-4,
+      "optimizer": "adam",
+      "scheduler": "step",
+      "step_size": 10,
+      "gamma": 0.5,
+      "num_epochs": 50,
+      "batch_size": 32,
+      "dropout": 0.2,
+      "shared_dim": 256,
+      "temperature": 0.1,
+      "lambda_smooth": 0.1,
+      "delta_threshold": 0.5,
+      "beta": 0.1,
+      "top_k": 8,
+      "lambda_entropy": 0.1,
+      "completion_weight": 0.5,
+      "lambda_local": 1.0,
+      "lambda_fusion": 1.0,
+      "lambda_prompt": 1.0,
+      "llm_model_name": "t5-base",
+      "prompt_len": 4,
+      "cls_len": 2
+    },
+    "datasetParams": {
+      "mosi": {
+        "feature_dims": [768, 74, 35],
+        "num_classes": 3,
+        "data_path": "dataset/mosi/",
+        "missing_rate": 0.1
+      },
+      "mosei": {
+        "feature_dims": [768, 74, 35],
+        "num_classes": 3,
+        "data_path": "dataset/mosei/",
+        "missing_rate": 0.1
+      }
+    }
+  }
+}
