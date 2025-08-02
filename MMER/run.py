@@ -15,6 +15,14 @@ from trains.ATIO import ATIO
 from trains.singleTask.model import create_model
 
 
+def get_device():
+    """Get the best available device"""
+    if torch.cuda.is_available():
+        return 'cuda'
+    else:
+        return 'cpu'
+
+
 def MMER_run(model_name='mmer', dataset_name='mosi', seeds=[1111, 2222, 3333, 4444, 5555], mr=0.1):
     """
     Run MMER experiments
@@ -26,6 +34,13 @@ def MMER_run(model_name='mmer', dataset_name='mosi', seeds=[1111, 2222, 3333, 44
         mr: Missing rate for simulating missing modalities
     """
     print(f"Running MMER experiments with model: {model_name}, dataset: {dataset_name}")
+    
+    # Set device
+    device = get_device()
+    print(f"Using device: {device}")
+    if device == 'cuda':
+        print(f"GPU: {torch.cuda.get_device_name()}")
+        print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
     
     # Load configuration
     config_path = 'config/config.json'
@@ -46,13 +61,16 @@ def MMER_run(model_name='mmer', dataset_name='mosi', seeds=[1111, 2222, 3333, 44
         # Set random seed
         torch.manual_seed(seed)
         np.random.seed(seed)
+        if device == 'cuda':
+            torch.cuda.manual_seed(seed)
+            torch.cuda.manual_seed_all(seed)
         
         # Create data loader
         data_loader = MMERDataLoader(dataset_name, model_config['datasetParams'][dataset_name])
         
         # Create model
         args = argparse.Namespace(**model_config['commonParams'])
-        args.device = 'cuda' if torch.cuda.is_available() else 'cpu'
+        args.device = device
         args.feature_dims = data_loader.get_feature_dims()
         args.num_classes = 3  # For sentiment classification
         

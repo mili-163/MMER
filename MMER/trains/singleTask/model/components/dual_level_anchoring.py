@@ -9,7 +9,7 @@ class DualLevelSemanticAnchoringModule(nn.Module):
     完整的Dual-Level Semantic Anchoring模块
     整合LLM原型生成和双级语义锚点计算
     """
-    def __init__(self, num_classes: int, embed_dim: int, top_k: int = 8, 
+    def __init__(self, num_classes: int, embed_dim: int, top_k: int = 15, 
                  lambda_entropy: float = 0.1, llm_model_name: str = "t5-base", 
                  prompt_len: int = 4, cls_len: int = 2, device: str = 'cpu'):
         super().__init__()

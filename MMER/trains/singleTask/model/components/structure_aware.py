@@ -13,9 +13,9 @@ from .gcn_enhancement import StructureAwareGCN
 class StructureAwareRepresentationLearning(nn.Module):
     """Complete Structure-aware Representation Learning module"""
     
-    def __init__(self, feature_dims: List[int], shared_dim: int = 256, 
-                 lambda_smooth: float = 0.1, delta_threshold: float = 0.5, 
-                 beta: float = 0.1):
+    def __init__(self, feature_dims: List[int], shared_dim: int = 512, 
+                 lambda_smooth: float = 0.1, delta_threshold: float = 1.5, 
+                 beta: float = 0.5):
         super(StructureAwareRepresentationLearning, self).__init__()
         
         self.modality_encoder = ModalityEncoder(feature_dims, shared_dim)

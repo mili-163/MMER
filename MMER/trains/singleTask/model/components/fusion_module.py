@@ -6,7 +6,7 @@ from typing import Dict
 class FusedMultimodalRepresentation(nn.Module):
     """Fused multimodal representation with adaptive weighting"""
     
-    def __init__(self, shared_dim: int = 256, lambda_smooth: float = 0.1):
+    def __init__(self, shared_dim: int = 512, lambda_smooth: float = 0.1):
         super(FusedMultimodalRepresentation, self).__init__()
         self.shared_dim = shared_dim
         self.lambda_smooth = lambda_smooth

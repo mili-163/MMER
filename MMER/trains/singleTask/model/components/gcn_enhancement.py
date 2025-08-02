@@ -6,7 +6,7 @@ import torch.nn.functional as F
 class StructureAwareGCN(nn.Module):
     """Structure-aware representation enhancement via GCNs"""
     
-    def __init__(self, shared_dim: int = 256, beta: float = 0.1):
+    def __init__(self, shared_dim: int = 512, beta: float = 0.5):
         super(StructureAwareGCN, self).__init__()
         self.shared_dim = shared_dim
         self.beta = beta

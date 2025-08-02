@@ -20,12 +20,14 @@ class LLMCategoryPrototype(nn.Module):
         # 创建LLM编码器
         self.llm_encoder = create_llm_encoder(llm_model_name, embed_dim, device)
         
-        # 可学习prompt token
-        self.learnable_prompt = nn.Parameter(torch.randn(num_classes, prompt_len, embed_dim))
-        # 可学习class token
-        self.learnable_cls = nn.Parameter(torch.randn(num_classes, cls_len, embed_dim))
-        # [MOD] token（可选：可学习或固定）
-        self.mod_token = nn.Parameter(torch.randn(1, 1, embed_dim))
+        # 可学习prompt token: [P_1^(c) ... P_k^(c)]
+        self.learnable_prompt = nn.Parameter(torch.randn(num_classes, prompt_len, embed_dim, device=device))
+        
+        # 可学习class token: [CLS_1^(c) ... CLS_s^(c)]
+        self.learnable_cls = nn.Parameter(torch.randn(num_classes, cls_len, embed_dim, device=device))
+        
+        # [MOD] token（可学习）
+        self.mod_token = nn.Parameter(torch.randn(1, 1, embed_dim, device=device))
         
         # 类别描述文本（用于生成文本prompt）
         self.class_descriptions = {
@@ -60,6 +62,32 @@ class LLMCategoryPrototype(nn.Module):
         
         return prompts
     
+    def construct_learnable_prompt(self, modality: str = 'text') -> torch.Tensor:
+        """
+        构建可学习的prompt: T_p^(c) = [P_1^(c) ... P_k^(c)] || [MOD] || [CLS_1^(c) ... CLS_s^(c)]
+        Args:
+            modality: 模态名称
+        Returns:
+            prompts: [num_classes, prompt_len+1+cls_len, embed_dim]
+        """
+        # 获取可学习的prompt tokens: [P_1^(c) ... P_k^(c)]
+        prompt_tokens = self.learnable_prompt  # [num_classes, prompt_len, embed_dim]
+        
+        # [MOD] token
+        mod_tokens = self.mod_token.expand(self.num_classes, -1, -1)  # [num_classes, 1, embed_dim]
+        
+        # 可学习的class tokens: [CLS_1^(c) ... CLS_s^(c)]
+        cls_tokens = self.learnable_cls  # [num_classes, cls_len, embed_dim]
+        
+        # 拼接完整的prompt
+        full_prompts = torch.cat([
+            prompt_tokens,  # [num_classes, prompt_len, embed_dim]
+            mod_tokens,     # [num_classes, 1, embed_dim]
+            cls_tokens      # [num_classes, cls_len, embed_dim]
+        ], dim=1)  # [num_classes, prompt_len+1+cls_len, embed_dim]
+        
+        return full_prompts
+    
     def forward(self, modality: str = 'text', use_text_prompt: bool = True) -> torch.Tensor:
         """
         返回所有类别的prototype: [num_classes, embed_dim]
@@ -73,17 +101,12 @@ class LLMCategoryPrototype(nn.Module):
             # 通过LLM编码器编码文本
             prototypes = self.llm_encoder.llm_encoder.encode_text(text_prompts)
         else:
-            # 使用learnable token
-            # 拼接prompt: [P1...Pk] + [MOD] + [CLS1...CLSs]
-            # shape: [num_classes, prompt_len+1+cls_len, embed_dim]
-            prompt = torch.cat([
-                self.learnable_prompt,  # [num_classes, prompt_len, embed_dim]
-                self.mod_token.expand(self.num_classes, -1, -1),  # [num_classes, 1, embed_dim]
-                self.learnable_cls  # [num_classes, cls_len, embed_dim]
-            ], dim=1)
+            # 使用可学习的prompt tokens
+            # 构建完整prompt: T_p^(c) = [P_1^(c) ... P_k^(c)] || [MOD] || [CLS_1^(c) ... CLS_s^(c)]
+            full_prompts = self.construct_learnable_prompt(modality)
             
             # 通过LLM编码器
-            prototypes = self.llm_encoder(prompt)
+            prototypes = self.llm_encoder(full_prompts)
         
         return prototypes  # [num_classes, embed_dim]
     

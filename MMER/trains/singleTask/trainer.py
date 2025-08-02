@@ -9,6 +9,14 @@ import json
 from datetime import datetime
 
 
+def get_device():
+    """Get the best available device"""
+    if torch.cuda.is_available():
+        return 'cuda'
+    else:
+        return 'cpu'
+
+
 class MMERTrainer:
     """
     Trainer for MMER (Multimodal Emotion Recognition) model
@@ -16,13 +24,19 @@ class MMERTrainer:
     
     def __init__(self, args):
         self.args = args
-        self.device = args.device
+        self.device = getattr(args, 'device', get_device())
         self.model = None
         self.optimizer = None
         self.scheduler = None
         self.best_val_loss = float('inf')
         self.patience_counter = 0
         self.early_stop_patience = getattr(args, 'early_stop_patience', 10)
+        
+        # Print device information
+        print(f"Using device: {self.device}")
+        if self.device == 'cuda':
+            print(f"GPU: {torch.cuda.get_device_name()}")
+            print(f"GPU Memory: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
         
         # Create output directories
         self.output_dir = f"results/mmer_{getattr(args, 'dataset_name', 'mosi')}"
@@ -33,7 +47,28 @@ class MMERTrainer:
         self.model = model.to(self.device)
         
         # Setup optimizer
-        if hasattr(self.args, 'optimizer') and self.args.optimizer.lower() == 'adam':
+        if hasattr(self.args, 'optimizer') and self.args.optimizer.lower() == 'adamw':
+            # Use different learning rates for BERT and other components
+            bert_params = []
+            other_params = []
+            
+            for name, param in self.model.named_parameters():
+                if 'bert' in name.lower() or 'text' in name.lower():
+                    bert_params.append(param)
+                else:
+                    other_params.append(param)
+            
+            # Create parameter groups with different learning rates
+            param_groups = [
+                {'params': bert_params, 'lr': getattr(self.args, 'bert_learning_rate', 5e-5)},
+                {'params': other_params, 'lr': self.args.learning_rate}
+            ]
+            
+            self.optimizer = optim.AdamW(
+                param_groups,
+                weight_decay=getattr(self.args, 'weight_decay', 1e-5)
+            )
+        elif hasattr(self.args, 'optimizer') and self.args.optimizer.lower() == 'adam':
             self.optimizer = optim.Adam(
                 self.model.parameters(),
                 lr=self.args.learning_rate,
@@ -63,6 +98,17 @@ class MMERTrainer:
                 verbose=True
             )
     
+    def move_to_device(self, data):
+        """Move data to the appropriate device"""
+        if isinstance(data, torch.Tensor):
+            return data.to(self.device)
+        elif isinstance(data, dict):
+            return {k: self.move_to_device(v) for k, v in data.items()}
+        elif isinstance(data, list):
+            return [self.move_to_device(item) for item in data]
+        else:
+            return data
+    
     def train_epoch(self, dataloader: DataLoader) -> Dict[str, float]:
         """Train for one epoch"""
         self.model.train()
@@ -71,8 +117,7 @@ class MMERTrainer:
         
         for batch in dataloader:
             # Move batch to device
-            batch = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v 
-                    for k, v in batch.items()}
+            batch = self.move_to_device(batch)
             
             # Forward pass
             self.optimizer.zero_grad()
@@ -103,8 +148,7 @@ class MMERTrainer:
         with torch.no_grad():
             for batch in dataloader:
                 # Move batch to device
-                batch = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v 
-                        for k, v in batch.items()}
+                batch = self.move_to_device(batch)
                 
                 # Forward pass
                 output = self.model(batch)
@@ -167,7 +211,7 @@ class MMERTrainer:
         
         # Load best model
         if os.path.exists(best_model_path):
-            self.model.load_state_dict(torch.load(best_model_path))
+            self.model.load_state_dict(torch.load(best_model_path, map_location=self.device))
             print(f"Loaded best model from {best_model_path}")
         
         if return_epoch_results:
@@ -186,8 +230,7 @@ class MMERTrainer:
         with torch.no_grad():
             for batch in dataloader:
                 # Move batch to device
-                batch = {k: v.to(self.device) if isinstance(v, torch.Tensor) else v 
-                        for k, v in batch.items()}
+                batch = self.move_to_device(batch)
                 
                 # Forward pass
                 output = self.model(batch)

@@ -10,7 +10,7 @@ class DualLevelSemanticAnchoring:
     - global anchors: 每个类别结构增强特征的top-K均值
     - category prototypes: LLM原型
     """
-    def __init__(self, top_k: int = 8, lambda_entropy: float = 0.1):
+    def __init__(self, top_k: int = 15, lambda_entropy: float = 0.1):
         self.top_k = top_k
         self.lambda_entropy = lambda_entropy
 

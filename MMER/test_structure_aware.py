@@ -17,7 +17,7 @@ from trains.singleTask.model.components import (
 
 def test_modality_encoder():
     """Test ModalityEncoder"""
-    print("Testing ModalityEncoder...")
+    print("测试 ModalityEncoder ...")
     
     # Create encoder
     feature_dims = [768, 5, 20]  # text, audio, vision
@@ -41,12 +41,12 @@ def test_modality_encoder():
     assert encoded_features['text'].shape == (batch_size, 256)
     assert pseudo_labels['text'].shape == (batch_size, 3)
     
-    print("✓ ModalityEncoder test passed")
+    print("ModalityEncoder 测试通过")
 
 
 def test_fusion_module():
     """Test FusedMultimodalRepresentation"""
-    print("Testing FusedMultimodalRepresentation...")
+    print("测试 FusedMultimodalRepresentation ...")
     
     # Create fusion module
     fusion = FusedMultimodalRepresentation(shared_dim=256, lambda_smooth=0.1)
@@ -65,12 +65,12 @@ def test_fusion_module():
     # Check output
     assert fused.shape == (batch_size, 256)
     
-    print("✓ FusedMultimodalRepresentation test passed")
+    print("FusedMultimodalRepresentation 测试通过")
 
 
 def test_semantic_graph():
     """Test CrossModalSemanticGraph"""
-    print("Testing CrossModalSemanticGraph...")
+    print("测试 CrossModalSemanticGraph ...")
     
     # Create semantic graph
     graph = CrossModalSemanticGraph(shared_dim=256, num_classes=3, delta_threshold=0.5)
@@ -99,12 +99,12 @@ def test_semantic_graph():
     assert adjacency_matrix.shape == (num_nodes, num_nodes)
     assert node_features.shape == (num_nodes, 256)
     
-    print("✓ CrossModalSemanticGraph test passed")
+    print("CrossModalSemanticGraph 测试通过")
 
 
 def test_gcn_enhancement():
     """Test StructureAwareGCN"""
-    print("Testing StructureAwareGCN...")
+    print("测试 StructureAwareGCN ...")
     
     # Create GCN
     gcn = StructureAwareGCN(shared_dim=256, beta=0.1)
@@ -122,12 +122,12 @@ def test_gcn_enhancement():
     # Check output
     assert enhanced_features.shape == (batch_size, 256)
     
-    print("✓ StructureAwareGCN test passed")
+    print("StructureAwareGCN 测试通过")
 
 
 def test_complete_pipeline():
     """Test complete Structure-aware pipeline"""
-    print("Testing complete Structure-aware pipeline...")
+    print("测试完整结构感知流程 ...")
     
     # Create complete module
     feature_dims = [768, 5, 20]
@@ -153,12 +153,12 @@ def test_complete_pipeline():
     # Check output
     assert enhanced_features.shape == (batch_size, 256)
     
-    print("✓ Complete pipeline test passed")
+    print("完整流程测试通过")
 
 
 def test_missing_modalities():
     """Test handling of missing modalities"""
-    print("Testing missing modalities handling...")
+    print("测试缺失模态处理 ...")
     
     # Create complete module
     feature_dims = [768, 5, 20]
@@ -184,11 +184,11 @@ def test_missing_modalities():
     # Check output
     assert enhanced_features.shape == (batch_size, 256)
     
-    print("✓ Missing modalities test passed")
+    print("缺失模态处理测试通过")
 
 
 if __name__ == "__main__":
-    print("Running Structure-aware component tests...\n")
+    print("开始运行结构感知组件测试 ...\n")
     
     try:
         test_modality_encoder()
@@ -198,8 +198,8 @@ if __name__ == "__main__":
         test_complete_pipeline()
         test_missing_modalities()
         
-        print("\n🎉 All tests passed! Structure-aware components are working correctly.")
+        print("\n所有结构感知组件测试通过！")
         
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n测试失败: {e}")
         raise 

@@ -18,7 +18,7 @@ from trains.singleTask.model.components import (
 
 def test_llm_encoder():
     """Test LLM Encoder"""
-    print("Testing LLM Encoder...")
+    print("测试 LLM Encoder ...")
     
     # Create LLM encoder
     llm_encoder = create_llm_encoder("t5-base", embed_dim=256, device="cpu")
@@ -35,12 +35,12 @@ def test_llm_encoder():
     # Check output
     assert encoded.shape == (batch_size, embed_dim)
     
-    print("✓ LLM Encoder test passed")
+    print("LLM Encoder 测试通过")
 
 
 def test_llm_prototype():
     """Test LLM Category Prototype"""
-    print("Testing LLM Category Prototype...")
+    print("测试 LLM Category Prototype ...")
     
     # Create prototype generator
     prototype_gen = LLMCategoryPrototype(
@@ -65,12 +65,12 @@ def test_llm_prototype():
     assert len(all_prototypes) == 3
     assert all_prototypes['text'].shape == (3, 256)
     
-    print("✓ LLM Category Prototype test passed")
+    print("LLM Category Prototype 测试通过")
 
 
 def test_semantic_anchoring():
     """Test Dual-Level Semantic Anchoring"""
-    print("Testing Dual-Level Semantic Anchoring...")
+    print("测试 Dual-Level Semantic Anchoring ...")
     
     # Create semantic anchoring
     anchoring = DualLevelSemanticAnchoring(top_k=4, lambda_entropy=0.1)
@@ -96,12 +96,12 @@ def test_semantic_anchoring():
     global_anchors = anchoring.compute_global_anchors(z, p, alpha)
     assert global_anchors.shape == (num_classes, embed_dim)
     
-    print("✓ Dual-Level Semantic Anchoring test passed")
+    print("Dual-Level Semantic Anchoring 测试通过")
 
 
 def test_dual_level_module():
     """Test complete Dual-Level Semantic Anchoring Module"""
-    print("Testing complete Dual-Level Semantic Anchoring Module...")
+    print("测试完整 Dual-Level Semantic Anchoring Module ...")
     
     # Create module
     module = DualLevelSemanticAnchoringModule(
@@ -151,12 +151,12 @@ def test_dual_level_module():
     assert result['global_anchors'].shape == (3, embed_dim)
     assert result['category_prototypes'].shape == (3, embed_dim)
     
-    print("✓ Complete Dual-Level Semantic Anchoring Module test passed")
+    print("完整 Dual-Level Semantic Anchoring Module 测试通过")
 
 
 def test_interface():
     """Test anchor interface for third component"""
-    print("Testing anchor interface...")
+    print("测试锚点接口 ...")
     
     # Create module
     module = DualLevelSemanticAnchoringModule(
@@ -177,11 +177,11 @@ def test_interface():
     assert 'category_prototypes' in interface
     assert 'all_prototypes' in interface
     
-    print("✓ Anchor interface test passed")
+    print("锚点接口测试通过")
 
 
 if __name__ == "__main__":
-    print("Running Dual-Level Semantic Anchoring component tests...\n")
+    print("开始运行双层锚定组件测试 ...\n")
     
     try:
         test_llm_encoder()
@@ -190,8 +190,8 @@ if __name__ == "__main__":
         test_dual_level_module()
         test_interface()
         
-        print("\n🎉 All tests passed! Dual-Level Semantic Anchoring components are working correctly.")
+        print("\n所有双层锚定组件测试通过！")
         
     except Exception as e:
-        print(f"\n❌ Test failed: {e}")
+        print(f"\n测试失败: {e}")
         raise 

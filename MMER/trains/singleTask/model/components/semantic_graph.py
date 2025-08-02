@@ -8,7 +8,7 @@ from typing import Dict, List, Tuple
 class ClassCenterCalculator(nn.Module):
     """Calculate class centers for each modality dynamically"""
     
-    def __init__(self, shared_dim: int = 256, num_classes: int = 3):
+    def __init__(self, shared_dim: int = 512, num_classes: int = 3):
         super(ClassCenterCalculator, self).__init__()
         self.shared_dim = shared_dim
         self.num_classes = num_classes
@@ -47,7 +47,7 @@ class ClassCenterCalculator(nn.Module):
 class CrossModalSemanticGraph(nn.Module):
     """Cross-modal semantic graph construction with proper class center computation"""
     
-    def __init__(self, shared_dim: int = 256, num_classes: int = 3, delta_threshold: float = 0.5):
+    def __init__(self, shared_dim: int = 512, num_classes: int = 3, delta_threshold: float = 1.5):
         super(CrossModalSemanticGraph, self).__init__()
         self.shared_dim = shared_dim
         self.num_classes = num_classes
@@ -150,12 +150,18 @@ class CrossModalSemanticGraph(nn.Module):
         # Compute class centers for each modality
         modality_class_centers = self.compute_modality_class_centers(encoded_features, pseudo_labels)
         
+        # 存储每个模态的边缘权重
+        modality_edge_weights = {}
+        
         # Compute sample-to-sample edges for each modality
         for modality in available_modalities:
             if modality in pseudo_labels and pseudo_labels[modality] is not None:
                 features = encoded_features[modality]
                 labels = pseudo_labels[modality]
                 class_centers = modality_class_centers[modality]
+                
+                # 初始化该模态的边缘权重矩阵
+                modality_weights = torch.zeros(batch_size, batch_size, device=fused_representations.device)
                 
                 # Compute edges between all sample pairs
                 for i in range(batch_size):
@@ -173,14 +179,36 @@ class CrossModalSemanticGraph(nn.Module):
                             c_i, c_j
                         )
                         
-                        # Add to adjacency matrix (symmetric)
-                        adjacency_matrix[i, j] += weight
-                        adjacency_matrix[j, i] += weight
+                        # Add to modality weight matrix (symmetric)
+                        modality_weights[i, j] = weight
+                        modality_weights[j, i] = weight
+                
+                modality_edge_weights[modality] = modality_weights
         
-        # Average edge weights across modalities
-        num_modalities = len(available_modalities)
-        if num_modalities > 0:
-            adjacency_matrix[:batch_size, :batch_size] /= num_modalities
+        # 边缘聚合：按照论文公式 a_ij = (1/M_ij) * Σ_m=1^M_ij w_ij^(m)
+        for i in range(batch_size):
+            for j in range(batch_size):
+                if i != j:
+                    # 计算共享模态数量
+                    shared_modalities = []
+                    for modality in available_modalities:
+                        if modality in modality_edge_weights:
+                            # 检查该模态中i和j是否都有有效特征
+                            if (encoded_features[modality] is not None and 
+                                pseudo_labels[modality] is not None):
+                                shared_modalities.append(modality)
+                    
+                    M_ij = len(shared_modalities)
+                    
+                    if M_ij > 0:
+                        # 聚合边缘权重
+                        total_weight = 0.0
+                        for modality in shared_modalities:
+                            total_weight += modality_edge_weights[modality][i, j]
+                        
+                        # 平均权重
+                        avg_weight = total_weight / M_ij
+                        adjacency_matrix[i, j] = avg_weight
         
         # Add sample-to-center edges using fused representation
         # Compute fused pseudo-labels and use average class centers

@@ -1,130 +1,132 @@
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.patches import FancyArrowPatch
-from matplotlib.markers import MarkerStyle
-from numpy.random import multivariate_normal as mvn
+import torch
+import torch.nn as nn
+from typing import Dict, Any
+from .components import (
+    StructureAwareRepresentationLearning,
+    DualLevelSemanticAnchoringModule,
+    MultiChannelPromptDistillation
+)
 
-np.random.seed(42)
+def get_modality_names():
+    return ['text', 'audio', 'vision']
 
-# --------------------- 样本设置 ---------------------
-n_samples = 500
-colors = ['orange', 'teal']
+def get_device():
+    """Get the best available device"""
+    if torch.cuda.is_available():
+        return 'cuda'
+    else:
+        return 'cpu'
 
-# 新的分布生成（更自然）
-def gen_natural_cluster(center, scale=1.0, angle_deg=0, elongation=1.0):
-    angle_rad = np.deg2rad(angle_deg)
-    rotation = np.array([
-        [np.cos(angle_rad), -np.sin(angle_rad)],
-        [np.sin(angle_rad),  np.cos(angle_rad)]
-    ])
-    cov_matrix = np.diag([scale * elongation, scale])
-    cov_rotated = rotation @ cov_matrix @ rotation.T
-    return mvn(center, cov_rotated, size=n_samples)
+class MMERMainModel(nn.Module):
+    """
+    主模型：多模态情感识别，组合结构感知、锚定、蒸馏等模块
+    """
+    def __init__(self, args):
+        super().__init__()
+        self.args = args
+        self.device = getattr(args, 'device', get_device())
+        self.feature_dims = args.feature_dims
+        self.num_classes = getattr(args, 'num_classes', 3)
+        self.shared_dim = getattr(args, 'shared_dim', 512)
+        self.temperature = getattr(args, 'temperature', 0.7)
+        self.lambda_smooth = getattr(args, 'lambda_smooth', 0.1)
+        self.delta_threshold = getattr(args, 'delta_threshold', 1.5)
+        self.beta = getattr(args, 'beta', 0.5)
+        self.top_k = getattr(args, 'top_k', 15)
+        self.lambda_entropy = getattr(args, 'lambda_entropy', 0.1)
+        self.completion_weight = getattr(args, 'completion_weight', 0.3)
+        self.lambda_local = getattr(args, 'lambda_local', 1.0)
+        self.lambda_fusion = getattr(args, 'lambda_fusion', 1.0)
+        self.lambda_prompt = getattr(args, 'lambda_prompt', 0.5)
+        self.llm_model_name = getattr(args, 'llm_model_name', 't5-base')
+        self.prompt_len = getattr(args, 'prompt_len', 4)
+        self.cls_len = getattr(args, 'cls_len', 2)
 
-# --------------------- 样本中心 ---------------------
-local_centers = np.array([[0, 0], [5, 0]])              # 图(a)(b)
-global_centers = np.array([[2, -6], [4, -2]])           # 图(c)(d) 斜角排列
+        # 结构感知表示学习
+        self.structure_aware = StructureAwareRepresentationLearning(
+            feature_dims=self.feature_dims,
+            shared_dim=self.shared_dim,
+            lambda_smooth=self.lambda_smooth,
+            delta_threshold=self.delta_threshold,
+            beta=self.beta
+        )
+        # 双层锚定
+        self.dual_level_anchoring = DualLevelSemanticAnchoringModule(
+            num_classes=self.num_classes,
+            embed_dim=self.shared_dim,
+            top_k=self.top_k,
+            lambda_entropy=self.lambda_entropy,
+            llm_model_name=self.llm_model_name,
+            prompt_len=self.prompt_len,
+            cls_len=self.cls_len,
+            device=self.device
+        )
+        # 多通道提示蒸馏
+        self.prompt_distillation = MultiChannelPromptDistillation(
+            embed_dim=self.shared_dim,
+            num_classes=self.num_classes,
+            temperature=self.temperature,
+            completion_weight=self.completion_weight,
+            llm_model_name=self.llm_model_name,
+            lambda_local=self.lambda_local,
+            lambda_fusion=self.lambda_fusion,
+            lambda_prompt=self.lambda_prompt,
+            device=self.device
+        )
 
-# 锚点偏移
-np.random.seed(10)
-anchor_offset_a = np.random.uniform(-2.0, 2.0, size=(2, 2))
-np.random.seed(30)
-anchor_offset_c = np.random.uniform(-1.5, 2, size=(2, 2))
-np.random.seed(20)
-anchor_offset_b = np.random.uniform(-0.1, 0.1, size=(2, 2))
-np.random.seed(40)
-anchor_offset_d = np.random.uniform(-0.1, 0.1, size=(2, 2))
+    def forward(self, batch: Dict[str, Any]) -> Dict[str, Any]:
+        # 1. 获取输入特征
+        features = {mod: batch.get(mod, None) for mod in get_modality_names()}
+        labels = batch['labels']['M'].squeeze(-1).long() if 'labels' in batch and 'M' in batch['labels'] else None
 
-local_anchors_a = local_centers + anchor_offset_a
-local_anchors_b = local_centers + anchor_offset_b
-global_anchors_c = global_centers + anchor_offset_c
-global_anchors_d = global_centers + anchor_offset_d
+        # 2. 结构感知特征
+        enhanced_features = self.structure_aware(features)  # [B, D]
 
-# --------------------- 工具函数 ---------------------
-def add_solid_arrow(ax, start, end):
-    arrow = FancyArrowPatch(start, end, arrowstyle='->', linestyle='--',
-                            linewidth=1.5, color='black', mutation_scale=8)
-    ax.add_patch(arrow)
+        # 3. 编码器输出
+        encoded_features, pseudo_labels = self.structure_aware.modality_encoder(features)
+        fused_features = self.structure_aware.fused_representation(encoded_features)
+        fused_pseudo_label = None
+        for v in pseudo_labels.values():
+            if v is not None:
+                fused_pseudo_label = v
+                break
+        if fused_pseudo_label is None:
+            fused_pseudo_label = torch.zeros(fused_features.size(0), self.num_classes, device=fused_features.device)
 
-def add_gray_star(ax, point):
-    ax.scatter(*point, marker=MarkerStyle('*'), s=30,
-               facecolor='none', edgecolor='gray', linewidth=1.2)
+        # 4. 锚点
+        anchor_result = self.dual_level_anchoring(
+            modal_features=encoded_features,
+            fused_features=fused_features,
+            pseudo_labels=pseudo_labels,
+            fused_pseudo_label=fused_pseudo_label,
+            modality='text'  # 可根据主模态调整
+        )
+        local_anchors = anchor_result['local_anchors']
+        global_anchors = anchor_result['global_anchors']
+        category_prototypes = anchor_result['category_prototypes']
 
-# --------------------- 绘图准备 ---------------------
-fig, axes = plt.subplots(2, 2, figsize=(5.2, 5.5))
-titles = [
-    "(a) Single-modal - Existing\nMissing Rate=50%",
-    "(b) Single-modal - AMP‑Distill\nMissing Rate=50%",
-    "(c) Fusion - Existing\nMissing Rate=50%",
-    "(d) Fusion - AMP‑Distill\nMissing Rate=50%"
-]
+        # 5. 蒸馏与分类
+        distill_result = self.prompt_distillation(
+            modal_features=encoded_features,
+            fused_features=fused_features,
+            local_anchors=local_anchors,
+            global_anchors=global_anchors,
+            category_prototypes=category_prototypes,
+            labels=labels
+        )
 
-for idx, ax in enumerate(axes.flatten()):
-    ax.set_xticks([]); ax.set_yticks([])
-    ax.set_title(titles[idx], fontsize=9)
-    for spine in ax.spines.values():
-        spine.set_visible(True)
-        spine.set_linewidth(1)
+        # 6. 输出
+        return {
+            'loss': distill_result['total_loss'],
+            'predictions': distill_result['final_probs'],
+            'cls_loss': distill_result['cls_loss'],
+            'local_loss': distill_result['local_loss'],
+            'fusion_loss': distill_result['fusion_loss'],
+            'prompt_loss': distill_result['prompt_loss']
+        }
 
-# --------------------- (a) 更自然、更松散、旋转 ---------------------
-ax = axes[0, 0]
-for i, center in enumerate(local_centers):
-    angle = 20 if i == 0 else -25
-    scale = 1.2 if i == 0 else 1.0
-    pts = gen_natural_cluster(center + np.random.randn(2) * 0.3, scale=scale, angle_deg=angle, elongation=1.6)
-    ax.scatter(pts[:, 0], pts[:, 1], alpha=0.5, s=3, color=colors[i])
-    mean_pt = pts.mean(axis=0)
-    ax.scatter(*local_anchors_a[i], marker='*', s=100, color='red' if i == 0 else 'blue')
-    add_gray_star(ax, mean_pt)
-    add_solid_arrow(ax, mean_pt, local_anchors_a[i])
-
-# --------------------- (b) 更集中，不同scale ---------------------
-ax = axes[0, 1]
-for i, center in enumerate(local_centers):
-    jitter_center = center + np.array([0.3 * (-1)**i, 0.1 * i])
-    pts = gen_natural_cluster(jitter_center, scale=0.25 + i * 0.05, angle_deg=i * 15)
-    ax.scatter(pts[:, 0], pts[:, 1], alpha=0.5, s=3, color=colors[i])
-    mean_pt = pts.mean(axis=0)
-    ax.scatter(*(local_anchors_b[i] + np.random.randn(2) * 0.02), marker='*', s=100,
-               color='red' if i == 0 else 'blue')
-    add_gray_star(ax, mean_pt)
-    add_solid_arrow(ax, mean_pt, local_anchors_b[i])
-
-# --------------------- (c) 融合，自然形状，不同旋转 ---------------------
-ax = axes[1, 0]
-for i, center in enumerate(global_centers):
-    angle = -15 if i == 0 else 45
-    scale = 1.1
-    pts = gen_natural_cluster(center + np.random.randn(2) * 0.2, scale=scale, angle_deg=angle, elongation=1.8 - 0.4 * i)
-    ax.scatter(pts[:, 0], pts[:, 1], alpha=0.5, s=3, color=colors[i])
-    mean_pt = pts.mean(axis=0)
-    ax.scatter(*global_anchors_c[i], marker='*', s=100, color='red' if i == 0 else 'blue')
-    add_gray_star(ax, mean_pt)
-    add_solid_arrow(ax, mean_pt, global_anchors_c[i])
-
-# --------------------- (d) 更集中，斜对角排列 ---------------------
-ax = axes[1, 1]
-for i, center in enumerate(global_centers):
-    offset = np.array([0.4 * (-1)**i, 0.2 * i])
-    pts = gen_natural_cluster(center + offset, scale=0.3 if i == 0 else 0.4, angle_deg=-30 + i * 40)
-    ax.scatter(pts[:, 0], pts[:, 1], alpha=0.5, s=3, color=colors[i])
-    mean_pt = pts.mean(axis=0)
-    ax.scatter(*(global_anchors_d[i] + np.random.randn(2) * 0.02), marker='*', s=100,
-               color='red' if i == 0 else 'blue')
-    add_gray_star(ax, mean_pt)
-    add_solid_arrow(ax, mean_pt, global_anchors_d[i])
-
-# --------------------- 图例 + 保存 ---------------------
-fig.suptitle('Figure X. Multimodal Sentiment Recognition at 50% Missing Rate', fontsize=12)
-handles = [
-    plt.Line2D([0], [0], marker='x', color='w', markerfacecolor='orange', markersize=7, label='Positive Samples'),
-    plt.Line2D([0], [0], marker='x', color='w', markerfacecolor='teal', markersize=7, label='Negative Samples'),
-    plt.Line2D([0], [0], marker='*', color='w', markerfacecolor='red', markersize=10, label='Positive Anchor'),
-    plt.Line2D([0], [0], marker='*', color='w', markerfacecolor='blue', markersize=10, label='Negative Anchor'),
-]
-fig.legend(handles=handles, loc='lower center', ncol=4, fontsize=9)
-plt.tight_layout(rect=[0, 0.06, 1, 0.94])
-
-# ✅ 保存为高清 PNG
-plt.savefig("multimodal_sentiment_50_missing.png", dpi=300)
-plt.show()
+def create_model(args):
+    """
+    工厂函数，返回主模型实例
+    """
+    return MMERMainModel(args)

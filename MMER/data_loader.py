@@ -7,6 +7,14 @@ import os
 from typing import Dict, List, Tuple, Optional
 
 
+def get_device():
+    """Get the best available device"""
+    if torch.cuda.is_available():
+        return 'cuda'
+    else:
+        return 'cpu'
+
+
 class MMERDataset(Dataset):
     """Dataset for MMER (Multimodal Emotion Recognition)"""
     
@@ -54,35 +62,38 @@ class MMERDataLoader:
         self.config = config
         self.data_path = config['data_path']
         self.batch_size = config.get('batch_size', 32)
+        self.device = get_device()
         
         # Create datasets
         self.train_dataset = MMERDataset(self.data_path, 'train')
         self.val_dataset = MMERDataset(self.data_path, 'val')
         self.test_dataset = MMERDataset(self.data_path, 'test')
         
-        # Create data loaders
+        # Create data loaders with GPU pinning if available
+        pin_memory = self.device == 'cuda'
+        
         self.train_loader = DataLoader(
             self.train_dataset,
             batch_size=self.batch_size,
             shuffle=True,
-            num_workers=4,
-            pin_memory=True
+            num_workers=4 if self.device == 'cuda' else 0,
+            pin_memory=pin_memory
         )
         
         self.val_loader = DataLoader(
             self.val_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=4,
-            pin_memory=True
+            num_workers=4 if self.device == 'cuda' else 0,
+            pin_memory=pin_memory
         )
         
         self.test_loader = DataLoader(
             self.test_dataset,
             batch_size=self.batch_size,
             shuffle=False,
-            num_workers=4,
-            pin_memory=True
+            num_workers=4 if self.device == 'cuda' else 0,
+            pin_memory=pin_memory
         )
     
     def get_data_loaders(self) -> Dict[str, DataLoader]:

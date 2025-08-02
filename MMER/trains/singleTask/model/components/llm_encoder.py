@@ -25,7 +25,7 @@ class LLMEncoder(nn.Module):
             self.encoder = AutoModel.from_pretrained(model_name)
             self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         
-        # 冻结参数
+        # 冻结参数并移动到设备
         for param in self.encoder.parameters():
             param.requires_grad = False
         

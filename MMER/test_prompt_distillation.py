@@ -17,7 +17,7 @@ from trains.singleTask.model.components import (
 
 def test_local_channel_distillation():
     """Test Local-Channel Distillation"""
-    print("Testing Local-Channel Distillation...")
+    print("测试 Local-Channel Distillation ...")
     
     # Create distillation module
     distillation = LocalChannelDistillation(temperature=0.1)
@@ -44,15 +44,15 @@ def test_local_channel_distillation():
     
     # Check output
     assert isinstance(loss, torch.Tensor)
-    print(f"Loss value: {loss.item()}")
+    print(f"损失值: {loss.item()}")
     assert loss.item() >= 0
     
-    print("Local-Channel Distillation test passed")
+    print("Local-Channel Distillation 测试通过")
 
 
 def test_fusion_channel_distillation():
     """Test Fusion-Channel Distillation"""
-    print("Testing Fusion-Channel Distillation...")
+    print("测试 Fusion-Channel Distillation ...")
     
     # Create distillation module
     distillation = FusionChannelDistillation(temperature=0.1)
@@ -70,15 +70,15 @@ def test_fusion_channel_distillation():
     
     # Check output
     assert isinstance(loss, torch.Tensor)
-    print(f"Loss value: {loss.item()}")
+    print(f"损失值: {loss.item()}")
     assert loss.item() >= 0
     
-    print("Fusion-Channel Distillation test passed")
+    print("Fusion-Channel Distillation 测试通过")
 
 
 def test_prompt_based_completion():
     """Test Prompt-Based Completion"""
-    print("Testing Prompt-Based Completion...")
+    print("测试 Prompt-Based Completion ...")
     
     # Create completion module
     completion = PromptBasedCompletion(
@@ -107,16 +107,16 @@ def test_prompt_based_completion():
     
     # Check outputs
     assert isinstance(loss, torch.Tensor)
-    print(f"Loss value: {loss.item()}")
+    print(f"损失值: {loss.item()}")
     assert loss.item() >= 0
     assert missing_embeddings.shape == (batch_size, embed_dim)
     
-    print("Prompt-Based Completion test passed")
+    print("Prompt-Based Completion 测试通过")
 
 
 def test_missing_aware_classification():
     """Test Missing-Aware Classification"""
-    print("Testing Missing-Aware Classification...")
+    print("测试 Missing-Aware Classification ...")
     
     # Create classification module
     classification = MissingAwareClassification(temperature=0.1, completion_weight=0.5)
@@ -146,12 +146,12 @@ def test_missing_aware_classification():
     assert compensated_features.shape == (batch_size, embed_dim)
     assert torch.allclose(final_probs.sum(dim=1), torch.ones(batch_size))
     
-    print("Missing-Aware Classification test passed")
+    print("Missing-Aware Classification 测试通过")
 
 
 def test_complete_prompt_distillation():
     """Test complete Multi-Channel Prompt Distillation"""
-    print("Testing complete Multi-Channel Prompt Distillation...")
+    print("测试完整 Multi-Channel Prompt Distillation ...")
     
     # Create distillation module
     distillation = MultiChannelPromptDistillation(
@@ -211,12 +211,12 @@ def test_complete_prompt_distillation():
     assert result['compensated_features'].shape == (batch_size, embed_dim)
     assert result['missing_embeddings'].shape == (batch_size, embed_dim)
     
-    print("Complete Multi-Channel Prompt Distillation test passed")
+    print("完整 Multi-Channel Prompt Distillation 测试通过")
 
 
 def test_missing_modalities():
     """Test handling of missing modalities"""
-    print("Testing missing modalities handling...")
+    print("测试缺失模态处理 ...")
     
     # Create distillation module
     distillation = MultiChannelPromptDistillation(
@@ -266,11 +266,11 @@ def test_missing_modalities():
     assert 'total_loss' in result
     assert result['total_loss'].item() >= 0
     
-    print("Missing modalities handling test passed")
+    print("缺失模态处理测试通过")
 
 
 if __name__ == "__main__":
-    print("Running Multi-Channel Prompt Distillation component tests...\n")
+    print("开始运行多通道提示蒸馏组件测试 ...\n")
     
     try:
         test_local_channel_distillation()
@@ -280,8 +280,8 @@ if __name__ == "__main__":
         test_complete_prompt_distillation()
         test_missing_modalities()
         
-        print("\nAll tests passed! Multi-Channel Prompt Distillation components are working correctly.")
+        print("\n所有多通道提示蒸馏组件测试通过！")
         
     except Exception as e:
-        print(f"\nTest failed: {e}")
+        print(f"\n测试失败: {e}")
         raise 
